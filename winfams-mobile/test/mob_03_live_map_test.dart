@@ -60,11 +60,14 @@ void main() {
       addTearDown(container.dispose);
 
       final wsService = container.read(liveMapWebSocketServiceProvider);
-      // Wait for notifier build
+      // Trigger notifier build
       final initial = container.read(liveMapProvider);
       expect(initial.deviceStatus.deviceId, 'pi4_car_01');
 
-      // Push simulated critical telemetry
+      // Allow Future.microtask in build() to complete (sets up stream listener)
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      // Push simulated critical telemetry after listener is active
       wsService.pushSimulatedTelemetry(
         deviceUid: 'pi4_car_01',
         state: 'CRITICAL_DROWSY',
@@ -74,8 +77,8 @@ void main() {
         drowsyScore: 0.92,
       );
 
-      // Allow stream to pump through microtasks
-      await Future<void>.delayed(const Duration(milliseconds: 20));
+      // Allow stream event to propagate through microtasks
+      await Future<void>.delayed(const Duration(milliseconds: 50));
 
       final updated = container.read(liveMapProvider);
       expect(updated.deviceStatus.state, 'CRITICAL_DROWSY');

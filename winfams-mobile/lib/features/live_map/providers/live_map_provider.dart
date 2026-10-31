@@ -28,12 +28,16 @@ class LiveMapNotifier extends Notifier<LiveMapState> {
       _telemetrySub?.cancel();
     });
 
-    _listenToWebSocketStream();
-
-    final familyId = authState.currentFamily?.id;
-    if (familyId != null) {
-      connectToFamily(familyId, token: authState.token);
-    }
+    // Defer side-effects until after build() returns the initial state.
+    // Writing to `state` inside build() before returning causes
+    // "Tried to read the state of an uninitialized provider".
+    Future.microtask(() {
+      _listenToWebSocketStream();
+      final familyId = authState.currentFamily?.id;
+      if (familyId != null) {
+        connectToFamily(familyId, token: authState.token);
+      }
+    });
 
     return LiveMapState(
       vehicleName: vehicleName,
