@@ -41,10 +41,10 @@ HEARTBEAT_ENDPOINT: str = f"{API_BASE_URL}/api/v1/edge/heartbeat"
 INCIDENTS_ENDPOINT: str = f"{API_BASE_URL}/api/v1/edge/incidents"
 
 # Computer Vision & Fatigue Detection Thresholds
-BLINK_THRESHOLD: float = float(os.getenv("WINFAMS_BLINK_THRESHOLD", "0.55"))
-YAWN_THRESHOLD: float = float(os.getenv("WINFAMS_YAWN_THRESHOLD", "0.60"))
-DROWSY_TIME_SEC: float = float(os.getenv("WINFAMS_DROWSY_TIME_SEC", "1.5"))
-YAWN_TIME_SEC: float = float(os.getenv("WINFAMS_YAWN_TIME_SEC", "2.5"))
+BLINK_THRESHOLD: float = float(os.getenv("WINFAMS_BLINK_THRESHOLD", "0.45"))
+YAWN_THRESHOLD: float = float(os.getenv("WINFAMS_YAWN_THRESHOLD", "0.42"))
+DROWSY_TIME_SEC: float = float(os.getenv("WINFAMS_DROWSY_TIME_SEC", "1.2"))
+YAWN_TIME_SEC: float = float(os.getenv("WINFAMS_YAWN_TIME_SEC", "1.8"))
 YAWN_COUNT_TRIGGER: int = int(os.getenv("WINFAMS_YAWN_COUNT_TRIGGER", "3"))
 YAWN_WINDOW_SEC: float = float(os.getenv("WINFAMS_YAWN_WINDOW_SEC", "600.0"))
 
@@ -64,6 +64,11 @@ MEDIAPIPE_MODEL_URL: str = (
 
 # Hardware: Buzzer Configuration (Raspberry Pi GPIO Pin BCM)
 BUZZER_PIN: int = int(os.getenv("WINFAMS_BUZZER_PIN", "17"))
+BUZZER_ACTIVE_HIGH: bool = os.getenv("WINFAMS_BUZZER_ACTIVE_HIGH", "true").lower() in (
+    "true",
+    "1",
+    "yes",
+)
 BUZZER_CRITICAL_BEEP_DURATION: float = 0.15
 BUZZER_WARNING_BEEP_DURATION: float = 0.40
 

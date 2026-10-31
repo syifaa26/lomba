@@ -22,6 +22,7 @@ from hardware.gps_reader import GPSReader
 from schemas.payload import DeviceStatus, FatigueIncident, HeartbeatPayload
 from services.api_client import BackgroundSyncWorker
 from services.cloud_sync import CloudSyncService
+from services.web_streamer import WebStreamer
 
 logger = logging.getLogger("winfams.orchestrator")
 
@@ -38,6 +39,7 @@ class EdgeOrchestrator:
         gps: GPSReader | None = None,
         cloud_sync: CloudSyncService | None = None,
         sync_worker: BackgroundSyncWorker | None = None,
+        web_streamer: WebStreamer | None = None,
         on_status: Callable[[DeviceStatus], None] | None = None,
         on_incident: Callable[[FatigueIncident], None] | None = None,
         show_preview: bool = False,
@@ -54,6 +56,7 @@ class EdgeOrchestrator:
         self.gps: GPSReader = gps or GPSReader()
         self.cloud_sync: CloudSyncService | None = cloud_sync
         self.sync_worker: BackgroundSyncWorker | None = sync_worker
+        self.web_streamer: WebStreamer | None = web_streamer
         self.on_status: Callable[[DeviceStatus], None] | None = on_status
         self.on_incident: Callable[[FatigueIncident], None] | None = on_incident
         self.show_preview: bool = show_preview
@@ -71,6 +74,8 @@ class EdgeOrchestrator:
             self.cloud_sync.start()
         if self.sync_worker is not None:
             self.sync_worker.start()
+        if self.web_streamer is not None:
+            self.web_streamer.start()
         logger.info("WinFams Edge Orchestrator is running.")
 
     def stop(self) -> None:
@@ -79,16 +84,17 @@ class EdgeOrchestrator:
             return
         logger.info("Stopping WinFams Edge Orchestrator...")
         self._running = False
-        self.camera.stop()
-        self.gps.stop()
-        self.buzzer.stop()
-        self.buzzer.close()
-        self.gps.close()
-        self.detector.close()
+        for res in (self.camera, self.gps, self.buzzer, self.detector):
+            if hasattr(res, "stop"):
+                res.stop()
+            if hasattr(res, "close"):
+                res.close()
         if self.cloud_sync is not None:
             self.cloud_sync.stop()
         if self.sync_worker is not None:
             self.sync_worker.stop()
+        if self.web_streamer is not None:
+            self.web_streamer.stop()
         if self.show_preview:
             cv2.destroyAllWindows()
         logger.info("All Edge subsystems stopped.")
@@ -138,6 +144,8 @@ class EdgeOrchestrator:
                 self.cloud_sync.report_incident(incident)
             if self.sync_worker is not None:
                 self.sync_worker.enqueue_incident(incident)
+        elif state_output.state == DriverState.CRITICAL_DROWSY and not self.buzzer.is_alerting:
+            self.buzzer.trigger_critical()
 
         # 3. Status Snapshot & Telemetry
         status = DeviceStatus(
@@ -166,19 +174,21 @@ class EdgeOrchestrator:
             self.sync_worker.update_telemetry(hb)
 
         if self.show_preview:
-            self._render_preview(frame, status)
+            self._render_preview(frame, status, detection)
+        if self.web_streamer is not None:
+            self.web_streamer.update(
+                frame,
+                status,
+                buzzer_active=getattr(self.buzzer, "is_alerting", False),
+                detection=detection,
+            )
 
         return status, incident
 
-    def _render_preview(self, frame: np.ndarray, status: DeviceStatus) -> None:
-        color = (0, 255, 0)
-        if status.state == DriverState.WARNING_FATIGUE.value:
-            color = (0, 165, 255)
-        elif status.state == DriverState.CRITICAL_DROWSY.value:
-            color = (0, 0, 255)
-        cv2.putText(frame, f"STATE: {status.state}", (20, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.75, color, 2)
-        cv2.putText(frame, f"Drowsy: {status.drowsy_confidence:.2f}", (20, 65), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 1)
-        cv2.imshow("WinFams Edge Monitor", frame)
+    def _render_preview(self, frame: np.ndarray, status: DeviceStatus, detection: Any = None) -> None:
+        from core.visualizer import draw_driver_hud
+        annotated = draw_driver_hud(frame.copy(), status, detection)
+        cv2.imshow("WinFams Edge Monitor", annotated)
         cv2.waitKey(1)
 
     def run(self, max_frames: int | None = None) -> None:
@@ -202,36 +212,37 @@ def main() -> None:
     """CLI entrypoint for executing Edge monitor."""
     setup_logging()
     parser = argparse.ArgumentParser(description="WinFams Edge Driver Monitor")
-    parser.add_argument("--preview", action="store_true", help="Display preview")
+    parser.add_argument("--preview", action="store_true", help="Display desktop preview")
+    parser.add_argument("--web", action="store_true", help="Launch live web dashboard")
+    parser.add_argument("--port", type=int, default=5000, help="Web port (default 5000)")
     parser.add_argument("--mock", action="store_true", help="Run mock hardware")
     parser.add_argument("--frames", type=int, default=None, help="Stop after N frames")
+    parser.add_argument("--no-sync", action="store_true", help="Disable API sync worker")
     args = parser.parse_args()
 
     detector = None
-    buzzer = None
-    gps = None
-    sync_worker = None
-
+    buzzer, gps, sync_worker = None, None, None
     if args.mock:
         from core.detector import MockDetector
-        detector = MockDetector()
-        buzzer = BuzzerController(force_mock=True)
+        detector, buzzer = MockDetector(), BuzzerController(force_mock=True)
         gps = GPSReader(force_mock=True)
+
+    if not args.no_sync:
+        sync_worker = BackgroundSyncWorker()
+
+    web_streamer = WebStreamer(port=args.port) if args.web else None
 
     orchestrator = EdgeOrchestrator(
         detector=detector,
         buzzer=buzzer,
         gps=gps,
         sync_worker=sync_worker,
+        web_streamer=web_streamer,
         show_preview=args.preview,
     )
 
-    def handle_signal(sig: int, frame: Any) -> None:
-        orchestrator.stop()
-        sys.exit(0)
-
-    signal.signal(signal.SIGINT, handle_signal)
-    signal.signal(signal.SIGTERM, handle_signal)
+    signal.signal(signal.SIGINT, lambda s, f: (orchestrator.stop(), sys.exit(0)))
+    signal.signal(signal.SIGTERM, lambda s, f: (orchestrator.stop(), sys.exit(0)))
     orchestrator.run(max_frames=args.frames)
 
 

@@ -7,6 +7,8 @@ to mock mode when executing on PC/laptop without Raspberry Pi GPIO pins.
 from __future__ import annotations
 
 import logging
+import os
+import sys
 import threading
 import time
 from typing import Any
@@ -19,17 +21,38 @@ logger = logging.getLogger(__name__)
 class MockBuzzerHardware:
     """Mock buzzer hardware driver for testing on non-Raspberry Pi environments."""
 
-    def __init__(self, pin: int) -> None:
+    def __init__(self, pin: int, audible: bool | None = None) -> None:
         self.pin: int = pin
         self.is_active: bool = False
         self.toggle_count: int = 0
-        logger.info("Initialized MockBuzzerHardware on simulated GPIO pin %d", pin)
+        if audible is None:
+            self.audible: bool = (
+                "pytest" not in sys.modules
+                and "PYTEST_CURRENT_TEST" not in os.environ
+            )
+        else:
+            self.audible = audible
+        logger.info(
+            "Initialized MockBuzzerHardware on simulated GPIO pin %d (audible=%s)",
+            pin,
+            self.audible,
+        )
 
     def on(self) -> None:
-        """Simulate buzzer sounding."""
+        """Simulate buzzer sounding with audible acoustic feedback on PC."""
         self.is_active = True
         self.toggle_count += 1
-        logger.debug("[MOCK BUZZER PIN %d] ON (BEEP)", self.pin)
+        logger.warning("[MOCK BUZZER PIN %d] ON (BEEP)", self.pin)
+        if self.audible:
+            try:
+                if sys.platform == "win32":
+                    import winsound
+
+                    winsound.Beep(2500, 80)
+                else:
+                    print("\a", end="", flush=True)
+            except Exception:
+                pass
 
     def off(self) -> None:
         """Simulate buzzer silence."""
@@ -45,9 +68,16 @@ class MockBuzzerHardware:
 class BuzzerController:
     """Thread-safe, non-blocking buzzer controller for active audible alerts."""
 
-    def __init__(self, pin: int = settings.BUZZER_PIN, force_mock: bool = False) -> None:
+    def __init__(
+        self,
+        pin: int = settings.BUZZER_PIN,
+        active_high: bool = settings.BUZZER_ACTIVE_HIGH,
+        force_mock: bool = False,
+        audible_mock: bool | None = None,
+    ) -> None:
         """Initialize buzzer driver on specified GPIO pin with mock fallback."""
         self.pin: int = pin
+        self.active_high: bool = active_high
         self.is_mock: bool = force_mock
         self._buzzer: Any = None
 
@@ -55,17 +85,21 @@ class BuzzerController:
             try:
                 from gpiozero import Buzzer  # type: ignore
 
-                self._buzzer = Buzzer(pin)
-                logger.info("Native gpiozero.Buzzer initialized on GPIO pin %d", pin)
+                self._buzzer = Buzzer(pin, active_high=active_high)
+                logger.info(
+                    "Native gpiozero.Buzzer on BCM GPIO %d (Physical Pin 11, active_high=%s)",
+                    pin,
+                    active_high,
+                )
             except Exception as exc:
                 logger.warning(
                     "GPIO hardware unavailable (%s). Falling back to MockBuzzerHardware.",
                     exc,
                 )
                 self.is_mock = True
-                self._buzzer = MockBuzzerHardware(pin)
+                self._buzzer = MockBuzzerHardware(pin, audible=audible_mock)
         else:
-            self._buzzer = MockBuzzerHardware(pin)
+            self._buzzer = MockBuzzerHardware(pin, audible=audible_mock)
 
         self._stop_event: threading.Event = threading.Event()
         self._worker_thread: threading.Thread | None = None

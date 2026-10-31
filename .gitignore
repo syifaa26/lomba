@@ -1,0 +1,90 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Distribution / packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environments & Environment Variables
+.env
+.env.*
+!.env.example
+.venv/
+env/
+venv/
+ENV/
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+.coverage.*
+nosetests.xml
+coverage.xml
+htmlcov/
+
+# AI Models & Large Weights (Downloaded on-demand)
+models_weights/
+*.task
+*.onnx
+*.engine
+*.tflite
+*.ncnn.*
+
+# Local Databases, Caches & Runtime Logs
+*.db
+*.db-journal
+*.db-wal
+*.sqlite
+*.sqlite3
+winfams-edge/data/
+*.log
+
+# Sensitive Credentials & Secret Keys
+*firebase_credentials*.json
+*service_account*.json
+**/android/app/google-services.json
+**/ios/Runner/GoogleService-Info.plist
+
+# Flutter & Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+
+# Android Build & Machine-specific Properties
+**/android/.gradle/
+**/android/app/build/
+**/android/local.properties
+**/android/key.properties
+**/android/**/GeneratedPluginRegistrant.java
+
+# iOS & macOS Build & Pods
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh
+
+# Editors & OS Files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+

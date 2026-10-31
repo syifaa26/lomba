@@ -29,6 +29,7 @@ class DetectionResult:
     eye_blink_left: float = 0.0
     eye_blink_right: float = 0.0
     jaw_open: float = 0.0
+    face_landmarks: list[tuple[int, int]] | None = None
 
 
 class BaseDetector(ABC):
@@ -120,6 +121,13 @@ class MediaPipeDetector(BaseDetector):
         drowsy_confidence = max(eye_blink_left, eye_blink_right)
         yawn_confidence = jaw_open
 
+        landmarks: list[tuple[int, int]] | None = None
+        if result.face_landmarks and len(result.face_landmarks) > 0:
+            h, w = frame.shape[:2]
+            landmarks = [
+                (int(pt.x * w), int(pt.y * h)) for pt in result.face_landmarks[0]
+            ]
+
         return DetectionResult(
             face_detected=True,
             drowsy_confidence=round(drowsy_confidence, 4),
@@ -127,6 +135,7 @@ class MediaPipeDetector(BaseDetector):
             eye_blink_left=round(eye_blink_left, 4),
             eye_blink_right=round(eye_blink_right, 4),
             jaw_open=round(jaw_open, 4),
+            face_landmarks=landmarks,
         )
 
     def close(self) -> None:

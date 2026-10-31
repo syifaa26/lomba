@@ -21,10 +21,10 @@ from schemas.payload import (
 
 def test_settings_defaults() -> None:
     """Verify that configuration settings match the PRD thresholds."""
-    assert settings.BLINK_THRESHOLD == 0.55
-    assert settings.YAWN_THRESHOLD == 0.60
-    assert settings.DROWSY_TIME_SEC == 1.5
-    assert settings.YAWN_TIME_SEC == 2.5
+    assert settings.BLINK_THRESHOLD == 0.45
+    assert settings.YAWN_THRESHOLD == 0.42
+    assert settings.DROWSY_TIME_SEC == 1.2
+    assert settings.YAWN_TIME_SEC == 1.8
     assert settings.YAWN_COUNT_TRIGGER == 3
     assert settings.YAWN_WINDOW_SEC == 600.0
     assert settings.BUZZER_PIN == 17

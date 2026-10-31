@@ -33,7 +33,7 @@ class AppConstants {
   static const double defaultLng = 116.831200;
 
   // REST API Endpoints
-  static const String defaultBaseUrl = 'http://10.0.2.2:8000';
+  static const String defaultBaseUrl = 'https://api.pemasukan.me';
   static const String epRegister = '/api/v1/auth/register';
   static const String epLogin = '/api/v1/auth/login';
   static const String epFcmToken = '/api/v1/auth/fcm-token';
@@ -41,7 +41,6 @@ class AppConstants {
   static const String epFamiliesJoin = '/api/v1/families/join';
 
   // WebSocket Endpoints
-  static const String defaultWsBaseUrl = 'ws://10.0.2.2:8000';
+  static const String defaultWsBaseUrl = 'wss://api.pemasukan.me';
   static const String wsFamilyPrefix = '/ws/families';
 }
-
