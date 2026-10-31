@@ -76,6 +76,19 @@ class ApiClient {
     return FamilyModel.fromMap(data);
   }
 
+  Future<List<FamilyModel>> getMyFamilies() async {
+    final response = await dio.get<List<dynamic>>(
+      '${AppConstants.epFamilies}/my',
+    );
+    final rawList = response.data ?? <dynamic>[];
+    return rawList
+        .whereType<Map>()
+        .map((e) => FamilyModel.fromMap(
+              e.map((k, v) => MapEntry(k.toString(), v as Object?)),
+            ))
+        .toList();
+  }
+
   Future<FamilyModel> joinFamily({
     required String inviteCode,
     String role = 'MONITOR',

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_theme.dart';
 import '../models/auth_state.dart';
@@ -186,19 +187,44 @@ class _FamilySetupScreenState extends ConsumerState<FamilySetupScreen> {
               family.name,
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 color: AppTheme.backgroundDark,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppTheme.accentCyan.withValues(alpha: 0.4)),
               ),
-              child: SelectableText(
-                'Kode Undangan: ${family.inviteCode}',
-                style: const TextStyle(fontSize: 16, color: AppTheme.accentCyan, fontWeight: FontWeight.bold),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('KODE UNDANGAN', style: TextStyle(fontSize: 10, color: Colors.white60)),
+                      SelectableText(
+                        family.inviteCode,
+                        style: const TextStyle(fontSize: 20, color: AppTheme.accentCyan, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.copy, color: AppTheme.accentCyan),
+                    tooltip: 'Salin Kode',
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: family.inviteCode));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Kode undangan ${family.inviteCode} disalin!'),
+                          backgroundColor: AppTheme.statusNormal,
+                        ),
+                      );
+                    },
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
             AuthButton(
               label: 'Lanjut ke Pairing Alat Pi 4',
               onPressed: () {

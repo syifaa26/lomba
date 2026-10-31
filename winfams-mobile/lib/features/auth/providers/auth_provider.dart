@@ -6,33 +6,54 @@ import '../../../core/network/api_client.dart';
 import '../models/auth_state.dart';
 
 /// Riverpod provider for the global API client instance.
-final apiClientProvider = Provider<ApiClient>((ref) {
-  return ApiClient();
-});
+final apiClientProvider = Provider<ApiClient>((ref) => ApiClient());
 
 /// Riverpod Notifier managing authentication, family groups, and device pairing.
 class AuthNotifier extends Notifier<AuthState> {
   @override
-  AuthState build() {
-    return const AuthState(status: AuthStatus.unauthenticated);
-  }
+  AuthState build() => const AuthState(status: AuthStatus.unauthenticated);
 
   ApiClient get _apiClient => ref.read(apiClientProvider);
 
-  void clearError() {
-    state = state.copyWith(clearError: true);
+  void clearError() => state = state.copyWith(clearError: true);
+
+  String _dioError(DioException e, String fallback) {
+    if (e.response?.data is Map) {
+      return (e.response?.data as Map)['detail']?.toString() ?? fallback;
+    }
+    return e.message ?? fallback;
   }
 
-  Future<bool> login({
-    required String email,
-    required String password,
-  }) async {
+  Future<void> _fetchUserFamilyAndDevices() async {
+    try {
+      final families = await _apiClient.getMyFamilies();
+      if (families.isEmpty) return;
+      final family = families.first;
+      List<DeviceItemModel> devices = [];
+      try {
+        final overview = await _apiClient.getFamilyOverview(family.id);
+        final rawDevices = (overview['devices'] as List<dynamic>?) ?? [];
+        devices = rawDevices
+            .whereType<Map>()
+            .map((d) => DeviceItemModel.fromMap(
+                  d.map((k, v) => MapEntry(k.toString(), v as Object?)),
+                ))
+            .toList();
+      } catch (_) {}
+      state = state.copyWith(currentFamily: family, devices: devices);
+    } catch (_) {}
+  }
+
+  Future<void> refreshFamily() async {
+    await _fetchUserFamilyAndDevices();
+  }
+
+  Future<bool> login({required String email, required String password}) async {
     state = state.copyWith(status: AuthStatus.loading, clearError: true);
     try {
       final res = await _apiClient.login(email: email, password: password);
       final token = res['access_token'] as String?;
       final userMap = res['user'] as Map<String, Object?>?;
-
       if (token == null || userMap == null) {
         state = state.copyWith(
           status: AuthStatus.error,
@@ -40,23 +61,18 @@ class AuthNotifier extends Notifier<AuthState> {
         );
         return false;
       }
-
       _apiClient.setAuthToken(token);
-      final user = UserModel.fromMap(userMap);
-
       state = state.copyWith(
         status: AuthStatus.authenticated,
         token: token,
-        user: user,
+        user: UserModel.fromMap(userMap),
       );
+      await _fetchUserFamilyAndDevices();
       return true;
     } on DioException catch (e) {
-      final detail = e.response?.data is Map
-          ? (e.response?.data as Map)['detail']?.toString()
-          : e.message;
       state = state.copyWith(
         status: AuthStatus.error,
-        errorMessage: detail ?? 'Gagal masuk. Periksa kembali email dan kata sandi.',
+        errorMessage: _dioError(e, 'Gagal masuk. Periksa email & kata sandi.'),
       );
       return false;
     } catch (e) {
@@ -84,7 +100,6 @@ class AuthNotifier extends Notifier<AuthState> {
       );
       final token = res['access_token'] as String?;
       final userMap = res['user'] as Map<String, Object?>?;
-
       if (token != null && userMap != null) {
         _apiClient.setAuthToken(token);
         state = state.copyWith(
@@ -92,17 +107,15 @@ class AuthNotifier extends Notifier<AuthState> {
           token: token,
           user: UserModel.fromMap(userMap),
         );
+        await _fetchUserFamilyAndDevices();
       } else {
         state = state.copyWith(status: AuthStatus.unauthenticated);
       }
       return true;
     } on DioException catch (e) {
-      final detail = e.response?.data is Map
-          ? (e.response?.data as Map)['detail']?.toString()
-          : e.message;
       state = state.copyWith(
         status: AuthStatus.error,
-        errorMessage: detail ?? 'Registrasi gagal. Email mungkin sudah terdaftar.',
+        errorMessage: _dioError(e, 'Registrasi gagal. Email mungkin sudah terdaftar.'),
       );
       return false;
     } catch (e) {
@@ -124,12 +137,9 @@ class AuthNotifier extends Notifier<AuthState> {
       );
       return true;
     } on DioException catch (e) {
-      final detail = e.response?.data is Map
-          ? (e.response?.data as Map)['detail']?.toString()
-          : e.message;
       state = state.copyWith(
         status: AuthStatus.error,
-        errorMessage: detail ?? 'Gagal membuat grup keluarga.',
+        errorMessage: _dioError(e, 'Gagal membuat grup keluarga.'),
       );
       return false;
     } catch (e) {
@@ -151,12 +161,9 @@ class AuthNotifier extends Notifier<AuthState> {
       );
       return true;
     } on DioException catch (e) {
-      final detail = e.response?.data is Map
-          ? (e.response?.data as Map)['detail']?.toString()
-          : e.message;
       state = state.copyWith(
         status: AuthStatus.error,
-        errorMessage: detail ?? 'Kode undangan tidak valid.',
+        errorMessage: _dioError(e, 'Kode undangan tidak valid.'),
       );
       return false;
     } catch (e) {
@@ -197,12 +204,9 @@ class AuthNotifier extends Notifier<AuthState> {
       );
       return true;
     } on DioException catch (e) {
-      final detail = e.response?.data is Map
-          ? (e.response?.data as Map)['detail']?.toString()
-          : e.message;
       state = state.copyWith(
         status: AuthStatus.error,
-        errorMessage: detail ?? 'Gagal mendaftarkan alat Pi 4.',
+        errorMessage: _dioError(e, 'Gagal mendaftarkan alat Pi 4.'),
       );
       return false;
     } catch (e) {

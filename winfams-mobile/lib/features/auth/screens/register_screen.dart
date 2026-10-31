@@ -29,14 +29,17 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     super.dispose();
   }
 
-  void _submitRegister() {
+  void _submitRegister() async {
     if (_formKey.currentState?.validate() ?? false) {
-      ref.read(authProvider.notifier).register(
+      final success = await ref.read(authProvider.notifier).register(
             name: _nameController.text.trim(),
             email: _emailController.text.trim(),
             password: _passwordController.text,
             phoneNumber: _phoneController.text.trim(),
           );
+      if (success && mounted) {
+        Navigator.of(context).pop();
+      }
     }
   }
 

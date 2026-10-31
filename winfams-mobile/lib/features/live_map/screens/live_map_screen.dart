@@ -5,8 +5,11 @@ import 'package:latlong2/latlong.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../alerts/screens/emergency_alert_screen.dart';
 import '../../alerts/screens/incident_history_screen.dart';
+import '../../auth/models/auth_state.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../family_hub/screens/family_hub_screen.dart';
+import '../../family_hub/widgets/family_info_dialog.dart';
+import '../models/live_map_state.dart';
 import '../providers/live_map_provider.dart';
 import '../widgets/driver_status_bottom_sheet.dart';
 import '../widgets/family_members_horizontal_bar.dart';
@@ -31,76 +34,45 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen> {
     return Scaffold(
       backgroundColor: AppTheme.backgroundDark,
       appBar: AppBar(
-        title: Row(
-          children: [
-            const Icon(Icons.shield_outlined, color: AppTheme.accentCyan),
-            const SizedBox(width: 8),
-            Text(
-              authState.currentFamily?.name ?? 'Live Family Map',
-              style: const TextStyle(fontSize: 18),
+        title: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: () => showDialog(
+            context: context,
+            builder: (_) => FamilyInfoDialog(
+              family: authState.currentFamily,
+              devices: authState.devices,
             ),
-          ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.shield_outlined, color: AppTheme.accentCyan),
+                const SizedBox(width: 8),
+                Text(
+                  authState.currentFamily?.name ?? 'Live Family Map',
+                  style: const TextStyle(fontSize: 18),
+                ),
+                const SizedBox(width: 4),
+                const Icon(Icons.info_outline, size: 14, color: Colors.white60),
+              ],
+            ),
+          ),
         ),
         actions: [
           _buildConnectionBadge(liveState.isConnected),
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert, color: Colors.white),
-            onSelected: (val) {
-              if (val == 'simulate') {
-                ref.read(liveMapProvider.notifier).simulateDrivingStep(
-                      deltaLat: 0.0015,
-                      deltaLng: 0.0010,
-                      speedKmh: 68.0,
-                      stateName: 'DRIVING',
-                    );
-                _mapController.move(
-                  LatLng(liveState.centerLat + 0.0015, liveState.centerLng + 0.0010),
-                  liveState.zoom,
-                );
-              } else if (val == 'simulate_warning') {
-                ref.read(liveMapProvider.notifier).simulateDrivingStep(
-                      deltaLat: 0.0005,
-                      deltaLng: 0.0005,
-                      speedKmh: 55.0,
-                      stateName: 'WARNING_FATIGUE',
-                      yawn: 0.85,
-                    );
-              } else if (val == 'history') {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const IncidentHistoryScreen()),
-                );
-              } else if (val == 'rest_stops') {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const FamilyHubScreen()),
-                );
-              } else if (val == 'logout') {
-                ref.read(authProvider.notifier).logout();
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'rest_stops',
-                child: Text('Smart Rest-Stop Finder'),
-              ),
-              const PopupMenuItem(
-                value: 'history',
-                child: Text('Riwayat Insiden & Titik Peta'),
-              ),
-              const PopupMenuItem(
-                value: 'simulate',
-                child: Text('Simulasi Gerak Mobil'),
-              ),
-              const PopupMenuItem(
-                value: 'simulate_warning',
-                child: Text('Simulasi Alert Kantuk'),
-              ),
-              const PopupMenuDivider(),
-              const PopupMenuItem(
-                value: 'logout',
-                child: Text('Keluar Akun'),
-              ),
+            onSelected: (val) => _handleMenuSelection(val, liveState, authState),
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'family_info', child: Text('Kode Undangan & Info Grup')),
+              PopupMenuItem(value: 'rest_stops', child: Text('Smart Rest-Stop Finder')),
+              PopupMenuItem(value: 'history', child: Text('Riwayat Insiden & Titik Peta')),
+              PopupMenuItem(value: 'simulate', child: Text('Simulasi Gerak Mobil')),
+              PopupMenuItem(value: 'simulate_warning', child: Text('Simulasi Alert Kantuk')),
+              PopupMenuDivider(),
+              PopupMenuItem(value: 'logout', child: Text('Keluar Akun')),
             ],
           ),
         ],
@@ -205,34 +177,50 @@ class _LiveMapScreenState extends ConsumerState<LiveMapScreen> {
     );
   }
 
+  void _handleMenuSelection(String val, LiveMapState liveState, AuthState authState) {
+    if (val == 'family_info') {
+      showDialog(
+        context: context,
+        builder: (_) => FamilyInfoDialog(family: authState.currentFamily, devices: authState.devices),
+      );
+    } else if (val == 'simulate') {
+      ref.read(liveMapProvider.notifier).simulateDrivingStep(deltaLat: 0.0015, deltaLng: 0.0010, speedKmh: 68.0);
+      _mapController.move(LatLng(liveState.centerLat + 0.0015, liveState.centerLng + 0.0010), liveState.zoom);
+    } else if (val == 'simulate_warning') {
+      ref.read(liveMapProvider.notifier).simulateDrivingStep(
+            deltaLat: 0.0005,
+            deltaLng: 0.0005,
+            speedKmh: 55.0,
+            stateName: 'WARNING_FATIGUE',
+            yawn: 0.85,
+          );
+    } else if (val == 'history') {
+      Navigator.push(context, MaterialPageRoute(builder: (_) => const IncidentHistoryScreen()));
+    } else if (val == 'rest_stops') {
+      Navigator.push(context, MaterialPageRoute(builder: (_) => const FamilyHubScreen()));
+    } else if (val == 'logout') {
+      ref.read(authProvider.notifier).logout();
+    }
+  }
+
   Widget _buildConnectionBadge(bool isConnected) {
+    final color = isConnected ? AppTheme.statusNormal : Colors.grey;
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: isConnected
-            ? AppTheme.statusNormal.withValues(alpha: 0.2)
-            : Colors.grey.withValues(alpha: 0.2),
+        color: color.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isConnected ? AppTheme.statusNormal : Colors.grey,
-        ),
+        border: Border.all(color: color),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          CircleAvatar(
-            radius: 3.5,
-            backgroundColor: isConnected ? AppTheme.statusNormal : Colors.grey,
-          ),
+          CircleAvatar(radius: 3.5, backgroundColor: color),
           const SizedBox(width: 5),
           Text(
             isConnected ? 'LIVE WS' : 'OFFLINE',
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-              color: isConnected ? AppTheme.statusNormal : Colors.grey,
-            ),
+            style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color),
           ),
         ],
       ),
